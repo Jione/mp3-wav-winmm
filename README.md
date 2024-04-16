@@ -1,16 +1,50 @@
-# cdaudio-winmm player (beta v.0.4.0.3):
+# mp3-wav-winmm player (v2.0 alpha)
 
-This is a winmm wrapper to a separate cdaudio player that handles the track repeat that is broken from Windows Vista onwards. Unlike the ogg-winmm wrapper which plays ripped .ogg files cdaudio-winmm instead tries to play the cdtracks on a physical disc (or cdimage) using a separate player program. Communication between winmm.dll and the player is done using [mailslots.](https://docs.microsoft.com/en-us/windows/win32/ipc/mailslots)
+This is a winmm wrapper that link tracks to mp3 or wav files for old programs trying to play tracks with a cdaudio device. (alternative "ogg-winmm", "_inmm")
+Unlike the ogg-winmm wrapper that plays the ogg file, it uses the player in cdaudio-winmm to link tracks to an mp3 or wav file.
+Communication between winmm.dll and the player is done using [mailslots.](https://docs.microsoft.com/en-us/windows/win32/ipc/mailslots)
 
-The trick is to handle the broken MCI mode change by monitoring POSTION and MODE. If MODE = "playing" and POSITION has not changed then we can determine that the track has finished playing and can update the MODE and send the MM_NOTIFY_SUCCESSFUL message (if requested). The cdaudio player code might also be useful to anyone wanting to write an MCI cdaudio player on newer Windows systems.
+Analyzing the mci command, it operates internally only if it is a request for cdaudio, and forwards the track playback and volume control commands to the player.
+If there is a sound source file in a certain folder, the playback duration is analyzed through file search, enables the internal timer when a play request occurs to return the value for the MCI_TRACK_POSITION or MCI_LENGTH request with accuracy of around 200 ms.
 
-![screenshot](screenshot-v04.png)
+![screenshot](screenshot-v20.png)
 
 Limitations:
-- Plays only single tracks which is fine most of the time but causes problems if the game issues a single "from -> to" command to play multiple tracks.
-- All tracks are reported as 1 minutes long. This may cause issues if a game relies on an accurate response for the track length query in order to determine when the track has finished playing.
+- If the music file is not found, all tracks are reported as 2min 30secs long. This may cause issues if a game relies on an accurate response for the track length query in order to determine when the track has finished playing.
 - The wrapper can not handle a situation where a game uses the MCI API to also play video files. In this case you will likely see a black screen or an error message.
 
+### Changes to a new version
+2.0.0(a) changes:
++ Built-in time calculation function for accurate playback time returns.
++ Added support for multiple cases.
++ Improved volume control support.
++ Multi-execution support.
+
+##### - winmm.dll
+  >New:   Code refactoring
+  New:   Interlock all fake functions using Mutex
+  Fixed: Resolves a problem that occurs when the exe file for music player is in the same folder.
+  Fixed: Fixed an issue where auxGetVolume always returned a value of 0 rather than the current volume.
+  Fixed: Fixed an issue with auxGetDevCapsA returning the supported volume to mono sound.
+  Fixed: Fixed issue with inappropriate MM_MCINOTIFY Callback notification in MCI_PLAY.
+  Fixed: Fixed issue with inappropriate MCI_MODE_PLAY return after play is complete in MCI_STATUS.
+  Added: Rewrote the original u/hifi's winmm.def linker
+  Added: Support for binary patched programs known as "_inmm" (Behavior when changing name "winmm.dll" to "_inmm.dll")
+  Added: More added original u/YELLO-belly's function relay for the fake-functions
+  Added: Configure standalone execution environment with DLL replication function (Behavior when winmm.win32.dll exists)
+  Added: Add Current hWnd Finder with GetCurrentHWND() function
+  Added: Add exe Path Finder with GetParentPath(LPTSTR) function
+  Added: Add named exe Process Running Checker with FindProcess(LPTSTR) function
+
+##### - winmm_player.exe
+  >New:   Code refactoring
+  New:   Supports tray icon function and moves to tray icon when minimize
+  New:   Support for multi-application execution
+  Modify: Override function to master volume function by connecting auxSetVolume to mciSendString setaudio
+  New:   Forced volume and Mute volume options
+
+
+### Changes to existing programs (dippy-dipper/cdaudio-winmm)
 0.4.0.3 changes:
 - Better no. of tracks logic. Should now work more reliably.
 - Set player to always run on the last CPU core to fix issues with games set to run on single core affinity (e.g. Midtown Madness).
@@ -37,18 +71,17 @@ Note: This may be the last maintenance release. Implementing support for games t
 - cleared up some naming inconsistency
 
 
-# Building:
+### Building:
 
-Build with make.cmd if path variables are set (C:\MinGW\bin).
-Or build from msys with command: mingw32-make
+All source files have been rewritten as a build environment for Visual Studio. (Created in VS2022)
+Change build environment to x86 in Visual Studio and run build
 
-# Usage:
+### Usage:
 
 - Place winmm.dll wrapper into the game folder.
-- Place cdaudioplr.exe in 'mcicda' -sub-folder.
+- Place winmm_player.exe into the game folder.
+- Place music folder into the game folder.
 - Run the game normally.
 
-NOTE:
-- You can start cdaudioplr.exe manually before running the game. Sometimes this may be necessary since the game may query the cd device before the wrapper has time to initialize the player.
-- Do not place cdaudioplr.exe and winmm.dll in the same folder!
-- v.0.3 now supports mp3 and wav playback if a music folder is found containing the tracks in the correct format. (track02.mp3/wav ...)
+### NOTE:
+- Tested on LEAF games (ToHeart1, WhiteAlbum1)
