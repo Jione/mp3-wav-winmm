@@ -20,28 +20,28 @@ Limitations:
 + Improved volume control support.
 + Multi-execution support.
 
-##### - winmm.dll
+#### - winmm.dll
   >New:   Code refactoring
-  New:   Interlock all fake functions using Mutex
-  Fixed: Resolves a problem that occurs when the exe file for music player is in the same folder.
-  Fixed: Fixed an issue where auxGetVolume always returned a value of 0 rather than the current volume.
-  Fixed: Fixed an issue with auxGetDevCapsA returning the supported volume to mono sound.
-  Fixed: Fixed issue with inappropriate MM_MCINOTIFY Callback notification in MCI_PLAY.
-  Fixed: Fixed issue with inappropriate MCI_MODE_PLAY return after play is complete in MCI_STATUS.
-  Added: Rewrote the original u/hifi's winmm.def linker
-  Added: Support for binary patched programs known as "_inmm" (Behavior when changing name "winmm.dll" to "_inmm.dll")
-  Added: More added original u/YELLO-belly's function relay for the fake-functions
-  Added: Configure standalone execution environment with DLL replication function (Behavior when winmm.win32.dll exists)
-  Added: Add Current hWnd Finder with GetCurrentHWND() function
-  Added: Add exe Path Finder with GetParentPath(LPTSTR) function
-  Added: Add named exe Process Running Checker with FindProcess(LPTSTR) function
+  >New:   Interlock all fake functions using Mutex
+  >Fixed: Resolves a problem that occurs when the exe file for music player is in the same folder.
+  >Fixed: Fixed an issue where auxGetVolume always returned a value of 0 rather than the current volume.
+  >Fixed: Fixed an issue with auxGetDevCapsA returning the supported volume to mono sound.
+  >Fixed: Fixed issue with inappropriate MM_MCINOTIFY Callback notification in MCI_PLAY.
+  >Fixed: Fixed issue with inappropriate MCI_MODE_PLAY return after play is complete in MCI_STATUS.
+  >Added: Rewrote the original u/hifi's winmm.def linker
+  >Added: Support for binary patched programs known as "_inmm" (Behavior when changing name "winmm.dll" to "_inmm.dll")
+  >Added: More added original u/YELLO-belly's function relay for the fake-functions
+  >Added: Configure standalone execution environment with DLL replication function (Behavior when winmm.win32.dll exists)
+  >Added: Add Current hWnd Finder with GetCurrentHWND() function
+  >Added: Add exe Path Finder with GetParentPath(LPTSTR) function
+  >Added: Add named exe Process Running Checker with FindProcess(LPTSTR) function
 
-##### - winmm_player.exe
+#### - winmm_player.exe
   >New:   Code refactoring
-  New:   Supports tray icon function and moves to tray icon when minimize
-  New:   Support for multi-application execution
-  Modify: Override function to master volume function by connecting auxSetVolume to mciSendString setaudio
-  New:   Forced volume and Mute volume options
+  >New:   Supports tray icon function and moves to tray icon when minimize
+  >New:   Support for multi-application execution
+  >Modify: Override function to master volume function by connecting auxSetVolume to mciSendString setaudio
+  >New:   Forced volume and Mute volume options
 
 
 ### Changes to existing programs (dippy-dipper/cdaudio-winmm)
