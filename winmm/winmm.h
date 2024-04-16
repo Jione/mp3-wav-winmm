@@ -110,6 +110,7 @@ static char musicFileExt[8]{};					// sub log message for mciSend function
 static DWORD playtimeDelay = 0x80;				// Estimated latency for mci play
 static DWORD cdaudioDelay = 0x200;				// Estimated latency for real CD Audio device
 static const DWORD globalDelayTime = 0x10;		// Estimated latency for IPC communication
+static const DWORD globalTimeout = 0x800;
 
 
 // Initialize IPC variables

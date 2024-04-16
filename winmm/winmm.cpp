@@ -54,10 +54,10 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD dwReason, PVOID pvReserved) {
             CriticalMutex = OpenMutexA(NULL, FALSE, "WINMMDLLWRAPPER");
         }
         if (CriticalMutex != NULL) {
-            if (WaitForSingleObject(CriticalMutex, 2000) != WAIT_TIMEOUT)
+            if (WaitForSingleObject(CriticalMutex, globalTimeout) != WAIT_TIMEOUT)
             {
-                mciMutex.sendCommand = CreateMutexA(NULL, FALSE, NULL);
                 InitializeCriticalSection(&mciSendStringSession);
+                mciMutex.sendCommand = CreateMutexA(NULL, FALSE, NULL);
                 mciServer.startup = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)WrapperInitialize, NULL, 0, NULL);
             }
             ReleaseMutex(CriticalMutex);
@@ -87,11 +87,15 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD dwReason, PVOID pvReserved) {
 
 // WINMM.DLL Wrapper Initializer
 void WrapperInitialize() {
-    WaitForSingleObject(mciMutex.sendCommand, INFINITE);
+    if (WaitForSingleObject(mciMutex.sendCommand, globalTimeout) == WAIT_TIMEOUT) {
+        MessageBoxA(NULL, "winmm.dll wrapper cannot load.", "Timeout", NULL);
+        return;
+    }
     char ProcessPath[MAX_PATH]{};
 
     // ini Loader
     LoadInitialize(&iniStatus);
+    if (iniStatus.useDebugDLL) { fh = fopen("winmm.log", "w"); }
 
     // Check for start up
     GetCurrentDirectory(MAX_PATH, currentPath);
@@ -99,7 +103,7 @@ void WrapperInitialize() {
     procIdentifier = -1;
 
     // Get Window handle (Wait 1secs)
-    for (int i = 0; i < 0x400; i++) {
+    for (int i = 0; i < 0x200; i++) {
         procIdentifier = ~(DWORD)GetCurrentHWND();
         if (procIdentifier != -1) {
             procIdentifier = ~procIdentifier;
@@ -112,12 +116,13 @@ void WrapperInitialize() {
     GetParentPath(ProcessPath);
     if ((procIdentifier == -1) || (strstr(ProcessPath, iniStatus.musicPlayer) != 0) || (strstr(ProcessPath, "_inmmserv.exe") != 0)) {
         procIdentifier = 0;
+        if (fh) fclose(fh);
         ReleaseMutex(mciMutex.sendCommand);
         return;
     }
 
     // Debug on
-    if (iniStatus.useDebugDLL) { fh = fopen("winmm.log", "w"); }
+    //if (iniStatus.useDebugDLL) { fh = fopen("winmm.log", "w"); }
     memcpy(&currentStatus.rightVolume, &iniStatus.rightVolume, sizeof(DWORD));
     currentStatus.playMode = 1;
     currentStatus.isUpdated = WPR_UPDATE_INIT;
@@ -216,7 +221,9 @@ HANDLE StartCDAudioProcess(LPSTR exeFileStart) {
             if (exeHandle) {
                 // Second run
                 if (currentStatus.isUpdated != WPR_UPDATE_INIT) {
-                    WaitForSingleObject(mciMutex.sendCommand, INFINITE);
+                    if (WaitForSingleObject(mciMutex.sendCommand, globalTimeout) == WAIT_TIMEOUT) {
+                        dprintf_nl("********Timeout StartCDAudio, Check Deadlock********");
+                    }
                     if (currentStatus.isUpdated == WPR_NOT_UPDATED) {
                         modeRequest.requestMode = WPR_NOTIFY | WPR_SET_VOLUME;
                     }
@@ -263,7 +270,9 @@ void WatchdogCDAudioProcess() {
         }
         else {
             if (!isExeRunnung) {
-                WaitForSingleObject(mciMutex.sendCommand, INFINITE);
+                if (WaitForSingleObject(mciMutex.sendCommand, globalTimeout) == WAIT_TIMEOUT) {
+                    dprintf_nl("********Timeout WatchdogCDAudio, Check Deadlock********");
+                }
                 snprintf(musicPath, MAX_PATH, "%s\\%s", currentPath, iniStatus.musicFolder);
                 MusicFileFinder(musicPath, iniStatus.musicNameFirst, musicFileExt, &currentStatus.trackCount, (DWORD_PTR*)currentStatus.trackTimes, currentStatus.trackNames);
                 modeRequest.requestMode = WPR_NOTIFY | WPR_SET_VOLUME;
@@ -299,7 +308,9 @@ BOOL SendIPCMessage() {
         return FALSE;
     }
 
-    WaitForSingleObject(mciMutex.toProcSendMsg, INFINITE);
+    if (WaitForSingleObject(mciMutex.toProcSendMsg, globalTimeout) == WAIT_TIMEOUT) {
+        dprintf_nl("********Timeout SendIPCMessage, Check Deadlock********");
+    }
     if (!modeRequest.hWndProcID) modeRequest.hWndProcID = (DWORD)GetCurrentHWND();
     if (modeRequest.requestMode >= WPR_GET_VOLUME) { modeRequest.requestMode |= WPR_NOTIFY; }
 
@@ -417,10 +428,14 @@ void ReceiveIPCMessageServer() {
     if ((Mailslot == INVALID_HANDLE_VALUE) || (Mailslot == NULL)) { return; }
 
     while (1) {
-        WaitForSingleObject(mciMutex.fromProcSendMsg, INFINITE);
+        if (WaitForSingleObject(mciMutex.fromProcSendMsg, globalTimeout) == WAIT_TIMEOUT) {
+            dprintf_nl("********Timeout ReceiveIPCMessage, Check Deadlock********");
+        }
         if (ReadFile(Mailslot, &statusResponse, sizeof(MM_RESPONSE), &readBytes, NULL)) {
             if (readBytes == sizeof(MM_RESPONSE)) {
-                WaitForSingleObject(mciMutex.sendCommand, INFINITE);
+                if (WaitForSingleObject(mciMutex.sendCommand, globalTimeout) == WAIT_TIMEOUT) {
+                    dprintf_nl("********Timeout ReceiveIPCMessage, Check Deadlock********");
+                }
                 currentStatus.timePlayStart = statusResponse.timePlayStart;
                 //memcpy(&currentStatus.rightVolume, &statusResponse.rightVolume, sizeof(DWORD));
                 currentStatus.isUpdated = WPR_UPDATED;
@@ -449,7 +464,9 @@ void PlayNotifyServer() {
             {
                 dprintf_nl("current: track%02d, currenttime: %d, to: track%02d, totime: %d", currentStatus.trackCurrent, currentStatus.timePlayLast, currentStatus.trackTo, currentStatus.trackToTime);
                 currentStatus.timePlayLast = currentStatus.trackToTime;
-                WaitForSingleObject(mciMutex.sendCommand, INFINITE);
+                if (WaitForSingleObject(mciMutex.sendCommand, globalTimeout) == WAIT_TIMEOUT) {
+                    dprintf_nl("********Timeout PlayNotifyServer, Check Deadlock********");
+                }
                 memset(&modeRequest, 0, sizeof(MM_REQUEST));
                 modeRequest.requestMode = WPR_STOP;
                 if (currentStatus.notifyPlayback == 1) {
@@ -473,7 +490,9 @@ void PlayNotifyServer() {
                 ReleaseMutex(mciMutex.sendCommand);
             }
             else if ((currentStatus.timePlayLast + playtimeDelay) >= currentStatus.trackTimes[currentStatus.trackCurrent]) {
-                WaitForSingleObject(mciMutex.sendCommand, INFINITE);
+                if (WaitForSingleObject(mciMutex.sendCommand, globalTimeout) == WAIT_TIMEOUT) {
+                    dprintf_nl("********Timeout PlayNotifyServer, Check Deadlock********");
+                }
                 memset(&modeRequest, 0, sizeof(MM_REQUEST));
                 if ((currentStatus.trackCurrent == currentStatus.trackTo) ||
                     ((++currentStatus.trackCurrent == currentStatus.trackTo) && (currentStatus.trackToTime == 0))) {
@@ -637,7 +656,9 @@ MCIERROR WINAPI returnSendCommand(int msgNum) {
 
 // MCI Command parsing and Information Return Function
 MCIERROR WINAPI fake_mciSendCommandA(MCIDEVICEID IDDevice, UINT uMsg, DWORD_PTR fdwCommand, DWORD_PTR dwParam) {
-    WaitForSingleObject(mciMutex.sendCommand, INFINITE);
+    if (WaitForSingleObject(mciMutex.sendCommand, globalTimeout) == WAIT_TIMEOUT) {
+        dprintf_nl("********Timeout mciSendCommandA, Check Deadlock********");
+    }
     if (!procIdentifier) {
         ReleaseMutex(mciMutex.sendCommand);
         return relay_mciSendCommandA(IDDevice, uMsg, fdwCommand, dwParam);
@@ -1180,7 +1201,9 @@ MCIERROR WINAPI fake_mciSendCommandA(MCIDEVICEID IDDevice, UINT uMsg, DWORD_PTR 
 // MCI Command parsing and Information Return Function
 // If information is needed, it will be call fake_mciSendCommandA function.
 MCIERROR WINAPI fake_mciSendStringA(LPCSTR lpCommand, LPSTR lpReturnString, UINT cchReturn, HWND hwndCallback) {
-    WaitForSingleObject(mciMutex.sendCommand, INFINITE);
+    if (WaitForSingleObject(mciMutex.sendCommand, globalTimeout) == WAIT_TIMEOUT) {
+        dprintf_nl("********Timeout mciSendStringA, Check Deadlock********");
+    }
     if (!procIdentifier) {
         ReleaseMutex(mciMutex.sendCommand);
         return relay_mciSendStringA(lpCommand, lpReturnString, cchReturn, hwndCallback);
@@ -1481,7 +1504,9 @@ MCIERROR WINAPI fake_mciSendStringA(LPCSTR lpCommand, LPSTR lpReturnString, UINT
 }
 
 UINT WINAPI fake_auxGetNumDevs() {
-    WaitForSingleObject(mciMutex.sendCommand, INFINITE);
+    if (WaitForSingleObject(mciMutex.sendCommand, globalTimeout) == WAIT_TIMEOUT) {
+        dprintf_nl("********Timeout auxGetNumDevs, Check Deadlock********");
+    }
     if (!procIdentifier) {
         ReleaseMutex(mciMutex.sendCommand);
         return relay_auxGetNumDevs();
@@ -1492,7 +1517,9 @@ UINT WINAPI fake_auxGetNumDevs() {
     return 1;
 }
 MMRESULT WINAPI fake_auxGetDevCapsA(UINT_PTR uDeviceID, LPAUXCAPSA lpCaps, UINT cbCaps) {
-    WaitForSingleObject(mciMutex.sendCommand, INFINITE);
+    if (WaitForSingleObject(mciMutex.sendCommand, globalTimeout) == WAIT_TIMEOUT) {
+        dprintf_nl("********Timeout auxGetDevCapsA, Check Deadlock********");
+    }
     if (!procIdentifier) {
         ReleaseMutex(mciMutex.sendCommand);
         return relay_auxGetDevCapsA(uDeviceID, lpCaps, cbCaps);
@@ -1513,7 +1540,9 @@ MMRESULT WINAPI fake_auxGetDevCapsA(UINT_PTR uDeviceID, LPAUXCAPSA lpCaps, UINT 
 }
 
 MMRESULT WINAPI fake_auxGetVolume(UINT uDeviceID, LPDWORD lpdwVolume) {
-    WaitForSingleObject(mciMutex.sendCommand, INFINITE);
+    if (WaitForSingleObject(mciMutex.sendCommand, globalTimeout) == WAIT_TIMEOUT) {
+        dprintf_nl("********Timeout auxGetVolume, Check Deadlock********");
+    }
     if (!procIdentifier) {
         ReleaseMutex(mciMutex.sendCommand);
         return relay_auxGetVolume(uDeviceID, lpdwVolume);
@@ -1529,7 +1558,9 @@ MMRESULT WINAPI fake_auxGetVolume(UINT uDeviceID, LPDWORD lpdwVolume) {
 }
 
 MMRESULT WINAPI fake_auxSetVolume(UINT uDeviceID, DWORD dwVolume) {
-    WaitForSingleObject(mciMutex.sendCommand, INFINITE);
+    if (WaitForSingleObject(mciMutex.sendCommand, globalTimeout) == WAIT_TIMEOUT) {
+        dprintf_nl("********Timeout auxSetVolume, Check Deadlock********");
+    }
     if (!procIdentifier) {
         ReleaseMutex(mciMutex.sendCommand);
         return relay_auxSetVolume(uDeviceID, dwVolume);

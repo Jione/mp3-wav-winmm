@@ -226,7 +226,9 @@ void ReceiveIPCMessageServer() {
 	}
 
 	while (1) {
-		WaitForSingleObject(playerMutex.fromDLLSendMsg, INFINITE);
+		if (WaitForSingleObject(playerMutex.fromDLLSendMsg, globalTimeout) == WAIT_TIMEOUT) {
+			dprintf_nl("********Timeout ReceiveIPCMessageServer, Check Deadlock********");
+		}
 		if (ReadFile(Mailslot, &modeRequest, sizeof(MM_REQUEST), &readBytes, NULL)) {
 			if (readBytes == sizeof(MM_REQUEST)) {
 
@@ -290,7 +292,9 @@ BOOL SendIPCMessage(DWORD procIdentifier, MM_RESPONSE* responseData) {
 		return FALSE;
 	}
 
-	WaitForSingleObject(playerMutex.toDLLSendMsg, INFINITE);
+	if (WaitForSingleObject(playerMutex.toDLLSendMsg, globalTimeout) == WAIT_TIMEOUT) {
+		dprintf_nl("********Timeout SendIPCMessage, Check Deadlock********");
+	}
 
 	// Send request message
 	WriteFile(Mailslot, responseData, sizeof(MM_RESPONSE), &writtenBytes, NULL);
@@ -312,7 +316,9 @@ BOOL SendIPCMessage(DWORD procIdentifier, MM_RESPONSE* responseData) {
 
 // Preparing an Open MCI Driver for Music Playback
 void RegisterPID (DWORD procIdentifier, WORD rightVol, WORD leftVol) {
-	WaitForSingleObject(playerMutex.playCommand, INFINITE);
+	if (WaitForSingleObject(playerMutex.playCommand, globalTimeout) == WAIT_TIMEOUT) {
+		dprintf_nl("********Timeout RegisterPID, Check Deadlock********");
+	}
 	if (PIDMap.find(procIdentifier) != PIDMap.end()) {
 		dprintf_nl("id:%08x is already loaded", procIdentifier);
 		dprintf_nl("reload data....");
@@ -330,7 +336,9 @@ void RegisterPID (DWORD procIdentifier, WORD rightVol, WORD leftVol) {
 
 // Close all MCI drivers assigned to procID and unregister map
 void UnregisterPID(DWORD procIdentifier) {
-	WaitForSingleObject(playerMutex.playCommand, INFINITE);
+	if (WaitForSingleObject(playerMutex.playCommand, globalTimeout) == WAIT_TIMEOUT) {
+		dprintf_nl("********Timeout UnregisterPID, Check Deadlock********");
+	}
 	auto iterTrack = PIDMap.find(procIdentifier);
 	if (iterTrack == PIDMap.end()) {
 		ReleaseMutex(playerMutex.playCommand);
@@ -351,7 +359,9 @@ void UnregisterPID(DWORD procIdentifier) {
 
 // Music Play Command Functions
 BOOL MusicPlay(DWORD procIdentifier, LPCSTR trackPath, DWORD trackNum, DWORD startTime, DWORD endTime) {
-	WaitForSingleObject(playerMutex.playCommand, INFINITE);
+	if (WaitForSingleObject(playerMutex.playCommand, globalTimeout) == WAIT_TIMEOUT) {
+		dprintf_nl("********Timeout MusicPlay, Check Deadlock********");
+	}
 	auto iterTrack = PIDMap.find(procIdentifier);
 	if (iterTrack == PIDMap.end()) {
 		dprintf_nl("Music play: Not initialized procID(%08X), request: track%02d, start: %dms, end: %dms", procIdentifier, trackNum, startTime, endTime);
@@ -416,7 +426,9 @@ BOOL MusicPlay(DWORD procIdentifier, LPCSTR trackPath, DWORD trackNum, DWORD sta
 
 // Music Stop Command Functions
 BOOL MusicStop(DWORD procIdentifier) {
-	WaitForSingleObject(playerMutex.playCommand, INFINITE);
+	if (WaitForSingleObject(playerMutex.playCommand, globalTimeout) == WAIT_TIMEOUT) {
+		dprintf_nl("********Timeout MusicStop, Check Deadlock********");
+	}
 	auto iterTrack = PIDMap.find(procIdentifier);
 	if (iterTrack == PIDMap.end()) {
 		dprintf_nl("Music stop: Not initialized procID(%08X)", procIdentifier);
@@ -435,7 +447,9 @@ BOOL MusicStop(DWORD procIdentifier) {
 
 // Music Volume Control Command Functions
 BOOL MusicVolumeControl(DWORD procIdentifier, DWORD dwVolume) {
-	WaitForSingleObject(playerMutex.playCommand, INFINITE);
+	if (WaitForSingleObject(playerMutex.playCommand, globalTimeout) == WAIT_TIMEOUT) {
+		dprintf_nl("********Timeout MusicVolumeControl, Check Deadlock********");
+	}
 	auto iterTrack = PIDMap.find(procIdentifier);
 	if (iterTrack == PIDMap.end()) {
 		dprintf_nl("Volume control: Not initialized procID(%08X)", procIdentifier);

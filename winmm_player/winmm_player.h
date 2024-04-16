@@ -52,6 +52,7 @@ static char currentPath[MAX_PATH];				// Running current path
 static PLAYER_MUTEX playerMutex{};				// Player Mutex handle struct
 static PLAYER_SERVER playerServer{};			// Player Server handle struct
 static std::map<DWORD, PLAY_INFO> PIDMap;		// Process ID Map for Multiple Play
+static const DWORD globalTimeout = 0x800;
 
 
 // Initialize IPC variables
